@@ -25,12 +25,12 @@ public class NGUIMultiToolEditor : EditorWindow
 	string lastMessage = "";
 	
 	int toolbarInt = -1;
-	string[] tools = new string[]{"Sprite Tool", "Atlas Tool", "Depth Tool"};
+	string[] tools = new string[]{"Sprite", "Atlas", "Depth", "Font", "Select"};
 	
 
 	public string oldSpriteName = "";
 	public string newSpriteName = "" ;
-	public List<UISprite> spritesFound = new List<UISprite>();
+	public List<UIWidget> widgetsFound = new List<UIWidget>();
 	public string lastSearchValue = "";
 	
 	//atlas tool
@@ -40,19 +40,30 @@ public class NGUIMultiToolEditor : EditorWindow
 	string[] atlasTools = new string[]{"Selected", "Search"};
 	string searchField = "";
 	
-	//depth
+	//depth tools
+	int toolbarIntDepthTool = 0;
+	string[] depthTools = new string[]{"Parent", "Selected"};
+	
 	Transform root = null;
 	int depth = 0;
 	
+	//font tools
+	UIFont oldFont = new UIFont();
+	UIFont newFont = new UIFont();
+	List<UILabel> foundLabels = new List<UILabel>();
 	
-
-
+	//select tool
+	public UIAtlas selectAtlas;
+	public List<Transform> selection = new List<Transform>();
+	
+	
+	
 	public void OnGUI() 
 	{
 
 		toolbarInt = GUILayout.Toolbar (toolbarInt, tools);
 
-		#region Sprite Tool
+#region Sprite Tool
 
 		if (toolbarInt == 0)
 		{
@@ -68,20 +79,20 @@ public class NGUIMultiToolEditor : EditorWindow
 					{
 						this.lastSearchValue = this.oldSpriteName;
 						Undo.RegisterSceneUndo("findingSprites");
-						this.FindSprites();
+						this.FindWidgets();
 					}
 					
 					if (this.oldSpriteName == this.lastSearchValue)
 					{
-						if (this.spritesFound.Count > 0)
+						if (this.widgetsFound.Count > 0)
 						{
 							
-							EditorGUILayout.LabelField("Found " + this.spritesFound.Count.ToString() + " sprites");
+							EditorGUILayout.LabelField("Found " + this.widgetsFound.Count.ToString() + " sprites");
 							this.newSpriteName = EditorGUILayout.TextField("New sprite name", this.newSpriteName); 
 						}
 						else
 						{
-							EditorGUILayout.LabelField("Found " + this.spritesFound.Count.ToString() + " sprites");	
+							EditorGUILayout.LabelField("Found " + this.widgetsFound.Count.ToString() + " sprites");	
 						}
 						
 						if (this.newSpriteName.Length > 0)
@@ -95,9 +106,9 @@ public class NGUIMultiToolEditor : EditorWindow
 						
 					}
 					//oldname field changed
-					else if (this.oldSpriteName == this.lastSearchValue && this.spritesFound.Count > 0)
+					else if (this.oldSpriteName == this.lastSearchValue && this.widgetsFound.Count > 0)
 					{
-						this.ClearFoundSprites();
+						this.ClearFoundWidgets();
 					}
 
 				}
@@ -105,13 +116,15 @@ public class NGUIMultiToolEditor : EditorWindow
 			EditorGUILayout.LabelField("To use sprite tool enter spriteName\nTool will search whole scene for sprites using this name\nThen enter new sprite name and press Swap", new GUILayoutOption[]{GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true)});
 		}
 #endregion
+		
+
+#region Atlas Tool
+		
 		//Atlas tool
 		else if (toolbarInt == 1)
 		{
 			toolbarIntAtlasTool = GUILayout.Toolbar (toolbarIntAtlasTool, atlasTools);
-
-#region Sprite Tool
-			
+		
 			//selected
 			if (toolbarIntAtlasTool == 0)
 			{
@@ -160,12 +173,12 @@ public class NGUIMultiToolEditor : EditorWindow
 					{
 						if(GUILayout.Button("Search for sprites"))
 						{
-							spritesFound = FindSprites(oldAtlas, searchField);
+							widgetsFound = FindWidgets(oldAtlas, searchField);
 						}
 						
-						if (spritesFound.Count > 0)
+						if (widgetsFound.Count > 0)
 						{
-							EditorGUILayout.LabelField("Found " + this.spritesFound.Count.ToString() + " sprites");	
+							EditorGUILayout.LabelField("Found " + this.widgetsFound.Count.ToString() + " sprites");	
 							
 					
 							newAtlas = (UIAtlas)EditorGUILayout.ObjectField("New Atlas", newAtlas, typeof(UIAtlas), true );
@@ -177,7 +190,7 @@ public class NGUIMultiToolEditor : EditorWindow
 									
 									if (AtlasHaveSprite(newAtlas, searchField))
 									{
-										SetAtlas(spritesFound, newAtlas);
+										SetAtlas(widgetsFound, newAtlas);
 										lastMessage = "Successful";
 									}
 									else
@@ -211,34 +224,141 @@ public class NGUIMultiToolEditor : EditorWindow
 		
 #endregion		
 		
-		
+#region Depth Tool	
 		//Depth tool
 		else if (toolbarInt == 2)
 		{
-			GUILayout.Label("Set widget depth in all children");
-			GUILayout.Space(5f);
-			
-			root = (Transform)EditorGUILayout.ObjectField("Parent", root, typeof(Transform), true );
-			
+			toolbarIntDepthTool = GUILayout.Toolbar (toolbarIntDepthTool, depthTools);
 
-			depth = EditorGUILayout.IntField(depth);
 
-			if (root != null)
+			//parent
+			if (toolbarIntDepthTool == 0)
 			{
-				if(GUILayout.Button("Set Depth"))
+				GUILayout.Label("Set widget depth in all children");
+				GUILayout.Space(5f);
+				
+				root = (Transform)EditorGUILayout.ObjectField("Parent", root, typeof(Transform), true );
+				
+	
+				depth = EditorGUILayout.IntField(depth);
+	
+				if (root != null)
 				{
-					Undo.RegisterSceneUndo("setDepth");
-					SetDepth(root, depth);
+					if(GUILayout.Button("Set Depth"))
+					{
+						Undo.RegisterSceneUndo("setDepth");
+						SetDepth(root, depth);
+					}
+				}
+				else
+				{
+					GUILayout.Label("Assign parent first");
 				}
 			}
-			else
+			//selected
+			else if (toolbarIntDepthTool == 1)
 			{
-				GUILayout.Label("Assign parent first");
+				GUILayout.Label("Set widget depth on selected");
+				GUILayout.Space(5f);
+				
+				Transform[] selection = Selection.transforms;
+					
+				depth = EditorGUILayout.IntField(depth);	
+				
+				if (selection.Length > 0)
+				{
+					if(GUILayout.Button("Set Depth"))
+					{
+						Undo.RegisterSceneUndo("setDepthOnSelection");
+						this.SetDepth(selection, depth);
+					}
+				}
+		
+			
 			}
 			
-
-			
 		}
+	
+#endregion		
+		
+#region Font Tool
+		//Font tool
+		else if (toolbarInt == 3)
+		{
+			GUILayout.Label("Find and swap fonts");
+			GUILayout.Space(5f);
+			
+			oldFont = (UIFont)EditorGUILayout.ObjectField("Old Font", oldFont, typeof(UIFont), true );
+			
+			
+			
+			if (oldFont != null)
+			{
+				if(GUILayout.Button("Find Fonts"))
+				{
+					foundLabels = FindLabels(oldFont);
+				}
+				
+				if (foundLabels.Count > 0)
+				{
+					GUILayout.Label("Found " + foundLabels.Count + " fonts");
+					
+					newFont = (UIFont)EditorGUILayout.ObjectField("New Font", newFont, typeof(UIFont), true );
+					
+					if (newFont != null)
+					{
+						if(GUILayout.Button("Replace Fonts"))
+						{
+							Undo.RegisterSceneUndo("swapFonts");
+							SwapFont(foundLabels, newFont);
+							GUILayout.Space(5f);
+							GUILayout.Label("Done");
+							
+						}
+					}
+				}
+			}
+		}
+#endregion		
+		
+#region Select Tool	
+		
+		//Select tool
+		else if (toolbarInt == 4)
+		{
+			GUILayout.Label("Find and select sprites & fonts using atlas");
+			GUILayout.Space(5f);
+			
+			
+			selectAtlas = (UIAtlas)EditorGUILayout.ObjectField("Atlas", selectAtlas, typeof(UIAtlas), true );
+				
+			if (selectAtlas)	
+			{
+				if (GUILayout.Button("Search Scene"))
+				{
+					selection = GetObjectsUsingAtlas(selectAtlas);
+				}
+				
+				if (selection.Count > 0)
+				{
+					GUILayout.Label(selection.Count + " Objects using atlas");
+					GUILayout.Space(10f);
+					
+					
+					foreach (Transform trans in selection)
+					{
+						EditorGUILayout.ObjectField(trans, typeof(Transform), true );
+						
+					}
+					
+				}
+			}
+		
+		}
+			
+#endregion
+		
+		
   }
 	
 	
@@ -246,46 +366,80 @@ public class NGUIMultiToolEditor : EditorWindow
 	
 	
 	
-	
-	
-	public void FindSprites()
+	public void FindWidgets()
 	{
-
-		spritesFound = new List<UISprite>();
+		widgetsFound = new List<UIWidget>();
 		
-		UISprite[] sprites = FindObjectsOfType(typeof(UISprite)) as UISprite[];
+		UIWidget[] widgets = FindObjectsOfType(typeof(UIWidget)) as UIWidget[];
 		
-        foreach (UISprite sprite in sprites) 
+        foreach (UIWidget widget in widgets) 
 		{
-			if (sprite.spriteName == oldSpriteName) spritesFound.Add(sprite);
+			if (GetSprite(widget) != null)
+			{
+				if (GetSprite(widget).spriteName == oldSpriteName) widgetsFound.Add(widget);
+			}
         }
+	}
+	
+	
+	
+	public List<UILabel> FindLabels( UIFont font)
+	{
+		List<UILabel> result = new List<UILabel>();
+		
+		UILabel[] labels = FindObjectsOfType(typeof(UILabel)) as UILabel[];	
+		
+		foreach (UILabel l in labels)
+		{
+			if (l.font == font) result.Add(l);
+		}
+		return result;
+	}
+	
+	
+	public void SwapFont(List<UILabel> labels, UIFont font)
+	{
+		foreach (UILabel label in labels) label.font = font; 	
 	}
 	
 		
 	
-	public List<UISprite> FindSprites(UIAtlas atlas, string spriteName)
+	
+	public List<UIWidget> FindWidgets(UIAtlas atlas, string spriteName)
 	{
 
-		List<UISprite> found = new List<UISprite>();
+		List<UIWidget> found = new List<UIWidget>();
 		
-		UISprite[] sprites = FindObjectsOfType(typeof(UISprite)) as UISprite[];
+		UIWidget[] widgets = FindObjectsOfType(typeof(UIWidget)) as UIWidget[];
 		
-        foreach (UISprite sprite in sprites) 
+        foreach (UIWidget widget in widgets) 
 		{
-			if (sprite.atlas == atlas)
+			if (GetSprite(widget) != null)
 			{
-				if (sprite.spriteName == spriteName) found.Add(sprite);
+				if (GetSprite(widget).atlas == atlas)
+				{
+					if (GetSprite(widget).spriteName == spriteName) found.Add(widget);
+				}	
 			}
-			
         }
 		return found;
 	}
 	
 	
+	public UISprite GetSprite(UIWidget widget)
+	{
+		UISprite result = null;
+		if (widget.gameObject.GetComponent<UISprite>() != null)
+		{
+			result = widget.gameObject.GetComponent<UISprite>();
+		}
+		return result;
+	}
+	
 	
 	public void SwapSprites()
 	{
-		foreach (UISprite sprite in spritesFound) 
+		foreach (UISprite sprite in widgetsFound) 
 		{
 			sprite.spriteName = newSpriteName;
 			sprite.MarkAsChanged();
@@ -305,9 +459,7 @@ public class NGUIMultiToolEditor : EditorWindow
 				result = true;	
 			}
 		}
-		
 		return result;
-		
 	}
 								
 	
@@ -325,20 +477,24 @@ public class NGUIMultiToolEditor : EditorWindow
 	
 	
 	
-	public void SetAtlas(List<UISprite> sprites, UIAtlas targetAtlas)
+	public void SetAtlas(List<UIWidget> widgets, UIAtlas targetAtlas)
 	{
-		foreach (UISprite sprite in sprites)	
+		foreach (UIWidget widget in widgets)	
 		{
-			sprite.atlas = targetAtlas;
-			sprite.MarkAsChanged();
+			if (widget.gameObject.GetComponent<UISprite>() != null)
+			{
+				UISprite sprite = widget.gameObject.GetComponent<UISprite>();
+				sprite.atlas = targetAtlas;
+				sprite.MarkAsChanged();
+			}
 		}
 	}
 	
 	
 	
-	public void ClearFoundSprites()
+	public void ClearFoundWidgets()
 	{
-		spritesFound = new List<UISprite>();
+		widgetsFound = new List<UIWidget>();
 	}
 	
 	
@@ -353,12 +509,49 @@ public class NGUIMultiToolEditor : EditorWindow
 			widget.depth = depth;	
 			widget.MarkAsChanged();
 		}
+	}
+	
+	public void SetDepth(Transform[] selection, int depth)
+	{
 		
 		
-		
+		foreach (Transform go in selection)
+		{
+			
+			if (go.GetComponent<UIWidget>() != null)
+			{
+				go.GetComponent<UIWidget>().depth = depth;
+				go.GetComponent<UIWidget>().MarkAsChanged();
+			}
+		}
 	}
 	
 	
+	
+	public List<Transform> GetObjectsUsingAtlas( UIAtlas atlas )
+	{
+		
+		List<Transform> result = new List<Transform>();
+		
+		UISprite[] sprites = FindObjectsOfType(typeof(UISprite)) as UISprite[];
+		UILabel[] labels = FindObjectsOfType(typeof(UILabel)) as UILabel[];
+       
+		foreach (UISprite sprite in sprites) 
+		{
+			if (sprite.atlas == atlas) result.Add(sprite.transform);	
+		}
+		
+		foreach (UILabel label in labels) 
+		{
+			if (label.font.atlas != null)
+			{
+				if (label.font.atlas == atlas) result.Add(label.transform);
+			}
+		}
+		
+		return result;
+		
+	}
 	
 	
 	
